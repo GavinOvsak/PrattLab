@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PrattLab</title>
+    <script src="jquery-1.8.2.min.js"></script>
+    <script src="d3.v3.min.js"></script>
+	<script>
+
+var gui = require('nw.gui');
+
+var prattlab = {};
+var pl = prattlab;
+
+prattlab.w = {};
+
+prattlab.w.help = function(x) {
+	if (x.help && typeof x.help == 'string') {
+		console.log(x.help);
+	} else {
+		console.log('No help found.');
+	}
+};
+
+prattlab.round = function(number, decimals) {
+	return parseFloat(number.toFixed(Math.abs(decimals)));
+};
+
+prattlab.round.help = 'Function takes in a number and the number of decimals to round it to. Returns the rounded value';
+
+prattlab.linspace = function(start, end, n) {
+	var result = [];
+	for (var i = 0; i < n; i ++) {
+		result.push(pl.round((end - start) * i / (n-1) + start, 8));
+	}
+	return result;
+};
+
+prattlab.array = function() {
+	var result = [];
+	if (arguments.length == 3) {
+		for (var i = arguments[0]; i < arguments[2]; i += arguments[1]) {
+			result.push(pl.round(i, 8));
+		}
+	} else if (arguments.length == 2) {
+		for (var i = arguments[0]; i < arguments[1]; i ++) {
+			result.push(pl.round(i, 8));
+		}
+	}
+	return result;
+};
+
+prattlab.line = function(x, y, type) {
+	if (isNumberArray(x) && !isNumberArray(y)) {
+		y = x;
+		x = prattlab.array(0, y.length);
+	}
+
+	var line = {
+		name: 'Line',
+		legend: '',
+		x: x,
+		y: y,
+		setX: function(x) {
+			this.x = x;
+			return this;
+		},
+		setY: function(y) {
+			this.y = y;
+			return this;
+		},
+		legend: function(legend) {
+			this.legend = legend;
+			return this;
+		}
+	};
+	switch (type) {
+		case 'k-':
+			line.color = 'FFFFFF';
+			line.shape = 'line';
+			break;
+		default:
+			line.color = 'FFFFFF';
+			line.shape = 'line';
+			break;
+	}
+	return line;
+};
+
+prattlab.plot = function() {
+	//go through list of arguments which all could be lines
+	var lines = [];
+
+	var i = 0;
+	while (i < arguments.length) {
+		if (isNumberArray(arguments[i])) {
+			if (i + 1 < arguments.length && isNumberArray(arguments[i + 1])) {
+				if (i + 2 < arguments.length && typeof arguments[i + 2] == 'String') {
+					lines.push(prattlab.line(arguments[i], arguments[i + 1], arguments[i + 2]));
+					i += 3;
+				} else {
+					lines.push(prattlab.line(arguments[i], arguments[i + 1]));
+					i += 2;
+				}
+			} else {
+				lines.push(prattlab.line(arguments[i + 0]));
+				i ++;
+			}
+		} else if (arguments[i].name == 'Line'){
+			lines.push(arguments[i]);
+			i ++;
+		} else {
+			i ++;
+		}
+	}
+
+	var figure = {
+		taken: false,
+		lines: lines,
+		addLine: function(line) {
+			this.lines.push(line)
+		},
+		getLines: function() {
+			return this.lines;
+		}
+	};
+
+	if (!global.plots)
+		global.plots = [];
+	global.plots.push(figure);
+	figure.window = gui.Window.get(window.open('popup.html'));
+	figure.window.resizeTo(300, 300);
+	figure.window.moveBy(100, 100);
+
+	return figure;
+};
+
+// var getColumn = function(matrix, column) {
+// 	var vector = [];
+// 	for (var i = 0; i < matrix.length; i++) {
+// 		vector.push(matrix[i][column]);
+// 	}
+// 	return vector;
+// };
+
+prattlab.clear = function() {
+	console.clear();
+};
+
+prattlab.clf = function() {
+	while (global.plots && global.plots.length > 0) {
+		var figure = global.plots.pop();
+		figure.window.close();
+//		console.log(global.plots);
+	}
+};
+
+function isArray(x) {
+  return Object.prototype.toString.call(x) === '[object Array]';
+};
+
+function isNumberArray(array) {
+	return isArray(array) && array.filter(function(x) {return typeof x == 'number';}).length == array.length;
+};
+
+Array.prototype.cropX = function(start, end) {
+	var result = [];
+	if (typeof start == 'number' && typeof end == 'number' && start < end && end < this.length) {
+		result = this.slice(start, end + 1);
+	} else {
+		console.error('Not in range.');
+	}
+	return result;
+};
+
+Array.prototype.cropY = function() {
+	var flip = this.transpose();
+	return flip.cropX.apply(flip, arguments).transpose();
+};
+
+Array.prototype.forEach = function(f) {
+	var result = [];
+	for (var i = 0; i < this.length; i++) {
+		if (typeof this[i] == 'number') {
+			result.push(f(this[i]));
+		} else if (isNumberArray(this[i])) {
+			result.push(this[i].forEach(f));
+		}
+	}
+	return result;
+};
+
+Array.prototype.min = function() {
+	var result = Number.MAX_VALUE;
+	this.forEach(function(x) {
+		result = Math.min(result, x);
+	});
+	return result;
+};
+
+Array.prototype.max = function() {
+	var result = Number.MIN_VALUE;
+	this.forEach(function(x) {
+		result = Math.max(result, x);
+	});
+	return result;
+};
+
+Array.prototype.mean = function() {
+	var total = 0;
+	var count = 0;
+	this.forEach(function(x) {
+		total += x;
+		count ++;
+	});
+	return total / count;
+};
+
+Array.prototype.transpose = function() {
+	var result;
+	if (isNumberArray(this)) {
+		result = [];
+		for (var i = 0; i < this.length; i++) {
+			result.push([this[i]]);
+		}
+	} else if (this.filter(function(x) {return isArray(x) && isNumberArray(x);}).length == this.length) {
+		result = [];
+		for (var i = 0; i < this.length; i++) {
+			for (var j = 0; j < this[i].length; j++) {
+				if (!result[j])
+					result[j] = [];
+				result[j][i] = this[i][j];
+			}
+		}
+	}
+	return result;
+};
+
+Array.prototype.mult = function(data) {
+	var result;
+	if (typeof data == 'number') {
+		//console.log('number');
+		if (isNumberArray(this)) {
+			result = this.map(function(i){
+				return i * data;
+			});
+		} else if (this.filter(function(x) {return isArray(x) && isNumberArray(x);}).length == this.length) {
+			result = this.map(function(i){
+				return i.map(function(j){ 
+					return j * data;
+				});
+			});
+		}
+	} else if (isArray(data) && data.length == this.length && isNumberArray(data)) {
+		if (isNumberArray(this)) {
+			//console.log('Both 1D number arrays');
+			//return a single value
+			result = 0;
+			for (var k = 0; k < this.length; k++) {
+				result += this[k] * data[k];
+			}
+		} else if (data.length == this[0].length &&
+			this.filter(function(x) {return isArray(x) && isNumberArray(x);}).length == this.length) {
+			//console.log('2D * 1D number arrays');
+			result = [];
+			for (var i = 0; i < data.length; i++) {
+				result.push(data.mult(this[i]));
+			}
+		}
+	} else if (data.filter(function(x) {return isArray(x) && isNumberArray(x);}).length == data.length &&
+		this.filter(function(x) {return isArray(x) && isNumberArray(x);}).length == this.length &&
+		data.length == this[0].length) {
+		//console.log('Both 2D number arrays');
+		var result = [];
+		for (var i = 0; i < this.length; i++) {
+			for (var j = 0; j < data[0].length; j++) {
+				if (!result[i])
+					result[i] = [];
+				result[i][j] = data.transpose()[j].mult(this[i]);
+			}
+		}
+	}
+	return result;
+};
+
+	</script>
+  </head>
+  <body>
+  	<style>
+  		.active {
+  			font-weight: bold
+  		}
+  	</style>
+    <h1> Welcome to PrattLab </h1>
+    <p> Choose a script to run </p>
+    Folder: <button id="folder"></button>
+    <input type="file" nwdirectory id="folderSelect" style="display:none;"/>
+    <ul id="fileList"></ul>
+	<button id="run">Run</button>
+	<button id="console">See Console</button>
+    <script>
+
+var win = gui.Window.get();
+var fs = require('fs');
+var directory = process.cwd();
+
+var refresh = function() {
+	$('#fileList').empty();
+	var files = fs.readdirSync(directory);
+
+	files.map(function(name){
+		if (name.slice(-3) == '.js') {
+			$('#fileList').append('<li>' + name + '</li>');
+			$('#fileList > li').click(function(){
+				$('.active').removeClass('active');
+				$(this).addClass('active');
+			});
+		}
+	});
+	$('#folder').text(directory.match(/[^\/][^\/]*$/));
+};
+refresh();
+
+$('#folderSelect').change(function(evt) {
+	directory = $(this).val();
+	refresh();
+});
+
+$('#folder').click(function(){
+	$('#folderSelect').trigger('click');  
+});
+
+var stringify = function(a, width) {
+    if (Array.isArray(a)) {
+        var result = [];
+        var allNumbers = true;
+        var allStrings = true;
+        for (var i = 0; i < a.length; i++) {
+            var s = stringify(a[i], width);
+            allNumbers = allNumbers && typeof s == 'number';
+            allStrings = allStrings && typeof s == 'string' && s.indexOf('\n') == -1;
+            result.push(s);
+        }
+        if (allNumbers) {
+            var string = '[';
+            for (var i = 0; i < a.length; i++) {
+                if (i < a.length - 1) {
+                    string += a[i] + ' '.repeat(width - (''+a[i]).length);
+                } else {
+                    string += a[i] + ']';
+                }
+            }
+            return string;
+        } else if (allStrings) {
+            var string = '';
+            for (var i = 0; i < a.length; i++) {
+                string += result[i] + '\n';
+            }
+            return string;
+        } else {
+            return result;
+        }
+    } else {
+        return a;
+    }
+};
+
+String.prototype.repeat = function(num)
+{
+    return new Array(num + 1).join(this);
+};
+
+console.logg = console.log;
+console.log = function(){
+    var message = arguments[0];
+    
+    var width = 0;
+    if (Array.isArray(message)) {
+	    message.forEach(function(x) {
+	        width = Math.max(width, (''+x).length);
+	    });
+	}
+    
+    if (Array.isArray(message)) {
+        console.logg(stringify(message, width + 1))
+    } else {
+        console.logg.apply(this, arguments);
+    }
+	win.showDevTools();
+};
+
+$('#console').click(function(){
+	win.showDevTools();
+});
+
+$('#run').click(function(){
+	if ($('.active').length > 0) {
+		fs.readFile( $('.active').text(), function (err, data) {
+			if (err) {
+				throw err; 
+			}
+			try {
+				(function(pl){
+					for (n in pl.w) {
+						window[n] = pl.w[n];
+						if (!pl[n])
+							pl[n] = pl.w[n];
+					}
+					eval(data.toString());
+				})(prattlab);
+			}
+			catch (error) {
+				console.log(error.stack);
+				win.showDevTools();
+			}
+		});
+	}
+});
+
+    </script>
+  </body>
+</html>

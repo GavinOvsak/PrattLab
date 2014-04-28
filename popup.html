@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Plot</title>
+    <script src="jquery-1.8.2.min.js"></script>
+    <script src="d3.v3.min.js"></script>
+  </head>
+  <body>
+    <h1 id='title'></h1>
+    <svg id="figure"></svg>
+    <style>
+
+    body {
+      font: 10px sans-serif;
+    }
+
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: #000;
+      shape-rendering: crispEdges;
+    }
+
+    .x.axis path {
+      display: none;
+    }
+
+    .line {
+      fill: none;
+      stroke: steelblue;
+      stroke-width: 1.5px;
+    }
+
+    </style>
+    <script>
+//    	document.getElementById('area1').innerHTML = 'TEST ' + global.plots[0].x;
+
+var isNumberArray = function(array) {
+  return array.length > 0 && array.filter(function(x) {return typeof x == 'number';}).length == array.length;
+};
+
+var isArray = function(x) {
+  return Object.prototype.toString.call(x) === '[object Array]';
+}
+
+Array.prototype.transpose = function() {
+  var result;
+  if (isNumberArray(this)) {
+    result = [];
+    for (var i = 0; i < this.length; i++) {
+      result.push([this[i]]);
+    }
+  } else if (this.filter(function(x) {return isArray(x)}).length == this.length) {
+    result = [];
+    for (var i = 0; i < this.length; i++) {
+      for (var j = 0; j < this[i].length; j++) {
+        if (!result[j])
+          result[j] = [];
+        result[j][i] = this[i][j];
+      }
+    }
+  }
+  return result;
+};
+
+
+var i = 0;
+while (i < global.plots.length && global.plots[i].taken) {
+  i++;
+}
+
+$('#title').text('Plot ' + (i+1));
+
+var figure = global.plots[i];
+figure.taken = true;
+
+//console.log(figure);
+
+var gui = require('nw.gui');
+var win = gui.Window.get();
+//win.showDevTools();
+
+$(document).ready(function() {
+
+var size = {
+  x: window.innerWidth,
+  y: window.innerHeight
+};
+
+window.onresize = function(event) {
+  size = {
+    x: window.innerWidth,
+    y: window.innerHeight
+  };
+  
+var margin = {top: 20, right: 20, bottom: 30, left: 50},
+    width = size.x - margin.left - margin.right - $('#figure').position().left,
+    height = size.y - margin.top - margin.bottom - $('#figure').position().top;
+
+var parseDate = d3.time.format("%d-%b-%y").parse;
+
+var x = d3.scale.linear()
+    .range([0, width]);
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left");
+
+$('#figure').empty();
+
+var svg = d3.select("#figure")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+/*var data = [
+[[0, 1],[1,1],[2,3]],
+[[0, 2],[1,2],[6,6]]
+];*/
+
+svg.data(figure.lines);
+
+var xRange = [];
+for (var i = 0; i < figure.lines.length; i++) {
+  xRange = d3.extent(xRange.concat(figure.lines[i].x));
+}
+x.domain(xRange);
+
+var yRange = [];
+for (var i = 0; i < figure.lines.length; i++) {
+  yRange = d3.extent(yRange.concat(figure.lines[i].y));
+}
+y.domain(yRange);
+
+//y.domain(d3.extent(data[0].transpose()[1]));
+
+svg.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height + ")")
+    .call(xAxis);
+/*    .append("text")
+    .attr("transform", "translate(0," + height + ")")
+    .attr("transform", "rotate(90)")
+    .style("text-anchor", "end")
+    .text("X Label");*/
+
+svg.append("g")
+    .attr("class", "y axis")
+    .call(yAxis);
+/*  .append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("y", 6)
+    .attr("dy", ".71em")
+    .style("text-anchor", "end")
+    .text("Y Label");*/
+
+var line = d3.svg.line()
+    .x(function(p) { return x(p[0]); })
+    .y(function(p) { return y(p[1]); });
+
+var func = svg.selectAll(".func")
+      .data(figure.lines)
+    .enter().append("g")
+      .attr("class", "func");
+
+func.append("path")
+      .attr("class", "line")
+      .attr("d", function(l) { return line([l.x, l.y].transpose()); });
+//      .style("stroke", function(d) { return color(d.name); });
+
+};
+
+});
+
+    </script>
+  </body>
+</html>
